@@ -33,3 +33,10 @@ def domainname_to_bytes(domainname: str) -> bytes:
     for label in domainname.split(".") + [""]:  # noqa: WPS519
         result += int_to_bytes(len(label), 1) + label.encode()
     return result
+
+
+def ip_to_bytes(ip: str) -> bytes:
+    result = b""
+    for num in ip.split("."):  # noqa: WPS519
+        result += int_to_bytes(int(num), 1)
+    return result

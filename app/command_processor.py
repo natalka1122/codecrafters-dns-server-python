@@ -1,15 +1,36 @@
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from app.const import RecordClass, RecordType
-from app.convert import domainname_to_bytes, int_to_bytes, list_int_to_bytes
+from app.convert import (
+    domainname_to_bytes,
+    int_to_bytes,
+    ip_to_bytes,
+    list_int_to_bytes,
+)
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
+class Question(NamedTuple):
+    qname: str
+    qtype: RecordType
+    qclass: RecordClass
+
+
+class RR(NamedTuple):
+    rname: str
+    rtype: RecordType
+    rclass: int
+    rttl: int
+    rdata: str
+
+
 @dataclass
 class DnsDatagram:
-    qname: list[tuple[str, RecordType, RecordClass]]
+    qname: list[Question]
+    rr: list[RR]
     id: int = 1234
     qr: int = 1
     opcode: int = 0
@@ -19,7 +40,6 @@ class DnsDatagram:
     ra: int = 0
     z: int = 0
     rcode: int = 0
-    ancount: int = 0
     nscount: int = 0
     arcount: int = 0
 
@@ -40,18 +60,36 @@ class DnsDatagram:
             ],
         )
         result += int_to_bytes(len(self.qname), 2)
-        result += int_to_bytes(self.ancount, 2)
+        result += int_to_bytes(len(self.rr), 2)
         result += int_to_bytes(self.nscount, 2)
         result += int_to_bytes(self.arcount, 2)
-        for qname, qtype, qclass in self.qname:
-            result += domainname_to_bytes(qname)
-            result += int_to_bytes(qtype, 2)
-            result += int_to_bytes(qclass, 2)
+        for question in self.qname:
+            result += domainname_to_bytes(question.qname)
+            result += int_to_bytes(question.qtype, 2)
+            result += int_to_bytes(question.qclass, 2)
+        for record in self.rr:
+            result += domainname_to_bytes(record.rname)
+            result += int_to_bytes(record.rtype, 2)
+            result += int_to_bytes(record.rclass, 2)
+            result += int_to_bytes(record.rttl, 4)
+            result += int_to_bytes(4, 4)  # 4-bytes for ipv4
+            result += ip_to_bytes(record.rdata)
 
         return result
 
 
 def processor(datagram: bytes) -> bytes:
-    result = DnsDatagram(qname=[("codecrafters.io", RecordType.A, RecordClass.IN)]).to_bytes
+    result = DnsDatagram(
+        qname=[Question(qname="codecrafters.io", qtype=RecordType.A, qclass=RecordClass.IN)],
+        rr=[
+            RR(
+                rname="codecrafters.io",
+                rtype=RecordType.A,
+                rclass=RecordClass.IN,
+                rttl=60,
+                rdata="8.8.8.8",
+            )
+        ],
+    ).to_bytes
     logger.info(f"Reply: {len(result)} {result!r}")
     return result
