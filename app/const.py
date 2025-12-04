@@ -1,0 +1,2 @@
+HOST = "0.0.0.0"
+DEFAULT_PORT = 2053

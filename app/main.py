@@ -1,26 +1,45 @@
-import socket
+from asyncio import (
+    BaseTransport,
+    DatagramTransport,
+    Protocol,
+    Runner,
+    get_running_loop,
+    sleep,
+)
+
+from app.const import DEFAULT_PORT, HOST
+from app.logging_config import get_logger, setup_logging
+
+setup_logging(level="DEBUG", log_dir="logs")
+# setup_logging(level="ERROR", log_dir="logs")
+
+logger = get_logger(__name__)
 
 
-def main():
-    # You can use print statements as follows for debugging, they'll be visible when running tests.
-    print("Logs from your program will appear here!")
+class DNSServerProtocol(Protocol):
+    def connection_made(self, transport: BaseTransport) -> None:
+        if not isinstance(transport, DatagramTransport):
+            raise NotImplementedError
+        self.transport: DatagramTransport = transport
 
-    # TODO: Uncomment the code below to pass the first stage
-    #
-    # udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    # udp_socket.bind(("127.0.0.1", 2053))
-    #
-    # while True:
-    #     try:
-    #         buf, source = udp_socket.recvfrom(512)
-    #
-    #         response = b""
-    #
-    #         udp_socket.sendto(response, source)
-    #     except Exception as e:
-    #         print(f"Error receiving data: {e}")
-    #         break
+    def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
+        logger.info(f"datagram_received {data!r}")
+        self.transport.sendto(data, addr)
+
+
+async def main() -> None:
+    logger.debug("Starting DNS server...")
+    loop = get_running_loop()
+
+    transport, _ = await loop.create_datagram_endpoint(
+        DNSServerProtocol, local_addr=(HOST, DEFAULT_PORT)
+    )
+    try:  # noqa: WPS501
+        await sleep(float("inf"))
+    finally:
+        transport.close()
 
 
 if __name__ == "__main__":
-    main()
+    with Runner() as runner:
+        runner.run(main())
