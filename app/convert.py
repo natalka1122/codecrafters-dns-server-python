@@ -32,11 +32,25 @@ def list_int_to_bytes(data: list[tuple[int, int]]) -> bytes:  # noqa: WPS210
     return result
 
 
-def domainname_to_bytes(domainname: str) -> bytes:
+def domainname_to_bytes(domainname: bytes) -> bytes:
     result = b""
-    for label in domainname.split(".") + [""]:  # noqa: WPS519
-        result += int_to_bytes(len(label), 1) + label.encode()
+    for label in domainname.split(b".") + [b""]:  # noqa: WPS519
+        result += int_to_bytes(len(label), 1) + label
     return result
+
+
+def _read_next_label(data: bytes) -> tuple[bytes, bytes]:
+    data, length = read_next_int(data, 1)
+    result = data[:length]
+    return data[length:], result
+
+
+def read_next_domainname(data: bytes) -> tuple[bytes, bytes]:
+    result: list[bytes] = []
+    while len(data) > 0 and data[0] != 0:
+        data, label = _read_next_label(data)
+        result.append(label)
+    return data[1:], b".".join(result)
 
 
 def ip_to_bytes(ip: str) -> bytes:
@@ -65,7 +79,7 @@ def read_next_list_int(  # noqa: WPS210
     if len(data) < expected_bytes:
         raise ValueError(f"data length {len(data)} doesn't match expected {expected_bytes} bytes")
 
-    bit_string = "".join(format(byte, "08b") for byte in data)
+    bit_string = "".join(format(byte, "08b") for byte in data[:expected_bytes])  # noqa: WPS221
 
     result: list[int] = []
     bit_position = 0
@@ -75,4 +89,4 @@ def read_next_list_int(  # noqa: WPS210
         result.append(value)
         bit_position += bit_size
 
-    return data[: expected_bytes + 1], tuple(result)
+    return data[expected_bytes:], tuple(result)

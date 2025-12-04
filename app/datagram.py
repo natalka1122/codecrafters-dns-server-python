@@ -7,19 +7,20 @@ from app.convert import (
     int_to_bytes,
     ip_to_bytes,
     list_int_to_bytes,
+    read_next_domainname,
     read_next_int,
     read_next_list_int,
 )
 
 
 class Question(NamedTuple):
-    qname: str
+    qname: bytes
     qtype: RecordType
     qclass: RecordClass
 
 
-class RR(NamedTuple):
-    rname: str
+class ResourceRecord(NamedTuple):
+    rname: bytes
     rtype: RecordType
     rclass: int
     rttl: int
@@ -27,9 +28,9 @@ class RR(NamedTuple):
 
 
 @dataclass
-class DnsReply:
-    qname: list[Question]
-    rr: list[RR]
+class DnsDatagram:
+    questions: list[Question]
+    resource_records: list[ResourceRecord]
     id: int
     qr: int = 1
     opcode: int = 0
@@ -57,46 +58,43 @@ class DnsReply:
                 (self.rcode, 4),
             ],
         )
-        result += int_to_bytes(len(self.qname), 2)
-        result += int_to_bytes(len(self.rr), 2)
+        result += int_to_bytes(len(self.questions), 2)
+        result += int_to_bytes(len(self.resource_records), 2)
         result += int_to_bytes(self.nscount, 2)
         result += int_to_bytes(self.arcount, 2)
-        for question in self.qname:
+        for question in self.questions:
             result += domainname_to_bytes(question.qname)
             result += int_to_bytes(question.qtype, 2)
             result += int_to_bytes(question.qclass, 2)
-        for record in self.rr:
+        for record in self.resource_records:
             result += domainname_to_bytes(record.rname)
             result += int_to_bytes(record.rtype, 2)
             result += int_to_bytes(record.rclass, 2)
             result += int_to_bytes(record.rttl, 4)
             result += int_to_bytes(4, 4)  # hardcoded 4-bytes for ipv4
             result += ip_to_bytes(record.rdata)
-
         return result
 
-
-@dataclass
-class DnsRequest:
-    id: int
-    qr: int
-    opcode: int
-    aa: int
-    tc: int
-    rd: int
-    ra: int
-    z: int
-    rcode: int
-
     @classmethod
-    def from_bytes(cls, data: bytes) -> "DnsRequest":  # noqa: WPS210
-        data, packet_id = read_next_int(data, 2)
+    def from_bytes(cls, data: bytes) -> "DnsDatagram":  # noqa: WPS210
+        data, packet_id = read_next_int(data, 2)  # noqa: WPS204
         data, pack = read_next_list_int(data, [1, 4, 1, 1, 1])
         qr, opcode, aa, tc, rd = pack  # noqa: WPS236
         data, pack = read_next_list_int(data, [1, 3, 4])
         ra, z, rcode = pack
-
-        return DnsRequest(  # noqa: WPS221
+        data, qdcount = read_next_int(data, 2)
+        data, ancount = read_next_int(data, 2)
+        data, nscount = read_next_int(data, 2)
+        data, arcount = read_next_int(data, 2)
+        questions: list[Question] = []
+        for _ in range(qdcount):
+            data, qname = read_next_domainname(data)
+            data, qtype = read_next_int(data, 2)
+            data, qclass = read_next_int(data, 2)
+            questions.append(
+                Question(qname=qname, qtype=RecordType(qtype), qclass=RecordClass(qclass))
+            )
+        return DnsDatagram(  # noqa: WPS221
             id=packet_id,
             qr=qr,
             opcode=opcode,
@@ -106,4 +104,6 @@ class DnsRequest:
             ra=ra,
             z=z,
             rcode=rcode,
+            questions=questions,
+            resource_records=[],
         )
