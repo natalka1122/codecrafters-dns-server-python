@@ -26,3 +26,10 @@ def list_int_to_bytes(data: list[tuple[int, int]]) -> bytes:  # noqa: WPS210
         result += int(byte_chunk, 2).to_bytes(1)
 
     return result
+
+
+def domainname_to_bytes(domainname: str) -> bytes:
+    result = b""
+    for label in domainname.split(".") + [""]:  # noqa: WPS519
+        result += int_to_bytes(len(label), 1) + label.encode()
+    return result
