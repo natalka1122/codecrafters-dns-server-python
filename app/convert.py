@@ -4,7 +4,11 @@ def int_to_bytes(data: int, size: int) -> bytes:
     if data >= (1 << (size * 8)):
         raise ValueError(f"data too large to fit in {size} bytes")
 
-    return data.to_bytes(size, byteorder="big")
+    return data.to_bytes(size)
+
+
+def bytes_to_int(data: bytes) -> int:
+    return int.from_bytes(data)
 
 
 def list_int_to_bytes(data: list[tuple[int, int]]) -> bytes:  # noqa: WPS210
@@ -40,3 +44,35 @@ def ip_to_bytes(ip: str) -> bytes:
     for num in ip.split("."):  # noqa: WPS519
         result += int_to_bytes(int(num), 1)
     return result
+
+
+def read_next_int(data: bytes, size: int) -> tuple[bytes, int]:
+    if len(data) < size:
+        raise NotImplementedError
+    result = bytes_to_int(data[:size])
+    return data[size:], result
+
+
+def read_next_list_int(  # noqa: WPS210
+    data: bytes, sizes: list[int]
+) -> tuple[bytes, tuple[int, ...]]:
+    total_bits = sum(sizes)
+    expected_bytes = total_bits // 8
+
+    if total_bits % 8 != 0:
+        raise ValueError("total bits must be divisible by 8")
+
+    if len(data) < expected_bytes:
+        raise ValueError(f"data length {len(data)} doesn't match expected {expected_bytes} bytes")
+
+    bit_string = "".join(format(byte, "08b") for byte in data)
+
+    result: list[int] = []
+    bit_position = 0
+    for bit_size in sizes:
+        bit_chunk = bit_string[bit_position : bit_position + bit_size]
+        value = int(bit_chunk, 2)
+        result.append(value)
+        bit_position += bit_size
+
+    return data[: expected_bytes + 1], tuple(result)
