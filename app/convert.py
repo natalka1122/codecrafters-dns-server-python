@@ -45,9 +45,16 @@ def _read_next_label(data: bytes) -> tuple[bytes, bytes]:
     return data[length:], result
 
 
-def read_next_domainname(data: bytes) -> tuple[bytes, bytes]:
+def read_next_domainname(data: bytes, orig_data: bytes, _depth: int = 0) -> tuple[bytes, bytes]:
+    if _depth > 2:
+        raise ValueError("DNS compression depth limit exceeded (possible cycle)")
     result: list[bytes] = []
     while len(data) > 0 and data[0] != 0:
+        if data[0] & 0xC0 == 0xC0:  # compression
+            offset = ((data[0] & 0x3F) << 8) | data[1]
+            _, compressed_part = read_next_domainname(orig_data[offset:], orig_data, _depth + 1)
+            result.append(compressed_part)
+            return data[2:], b".".join(result)
         data, label = _read_next_label(data)
         result.append(label)
     return data[1:], b".".join(result)

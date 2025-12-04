@@ -15,8 +15,9 @@ class DNSServerProtocol(Protocol):
         if not isinstance(transport, DatagramTransport):
             raise NotImplementedError
         self.transport: DatagramTransport = transport
-        logger.info("connection_made")
 
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         logger.info(f"datagram_received {data!r}")
-        self.transport.sendto(processor(data), addr)
+        reply = processor(data)
+        self.transport.sendto(reply, addr)
+        logger.info(f"datagram sent {reply!r}")

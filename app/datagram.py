@@ -77,6 +77,7 @@ class DnsDatagram:
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "DnsDatagram":  # noqa: WPS210
+        orig_data = data
         data, packet_id = read_next_int(data, 2)  # noqa: WPS204
         data, pack = read_next_list_int(data, [1, 4, 1, 1, 1])
         qr, opcode, aa, tc, rd = pack  # noqa: WPS236
@@ -88,7 +89,7 @@ class DnsDatagram:
         data, arcount = read_next_int(data, 2)
         questions: list[Question] = []
         for _ in range(qdcount):
-            data, qname = read_next_domainname(data)
+            data, qname = read_next_domainname(data, orig_data)
             data, qtype = read_next_int(data, 2)
             data, qclass = read_next_int(data, 2)
             questions.append(
