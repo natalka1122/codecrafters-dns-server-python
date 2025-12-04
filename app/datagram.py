@@ -71,7 +71,7 @@ class DnsDatagram:
             result += int_to_bytes(record.rtype, 2)
             result += int_to_bytes(record.rclass, 2)
             result += int_to_bytes(record.rttl, 4)
-            result += int_to_bytes(4, 4)  # hardcoded 4-bytes for ipv4
+            result += int_to_bytes(4, 2)  # hardcoded 4-bytes for ipv4
             result += ip_to_bytes(record.rdata)
         return result
 
