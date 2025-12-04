@@ -1,13 +1,11 @@
-from asyncio import (
-    BaseTransport,
-    DatagramTransport,
-    Protocol,
-    Runner,
-    get_running_loop,
-    sleep,
-)
+import asyncio
+import signal
+import sys
+from functools import partial
+from typing import Callable
 
 from app.const import DEFAULT_PORT, HOST
+from app.dns_server import DNSServerProtocol
 from app.logging_config import get_logger, setup_logging
 
 setup_logging(level="DEBUG", log_dir="logs")
@@ -16,30 +14,39 @@ setup_logging(level="DEBUG", log_dir="logs")
 logger = get_logger(__name__)
 
 
-class DNSServerProtocol(Protocol):
-    def connection_made(self, transport: BaseTransport) -> None:
-        if not isinstance(transport, DatagramTransport):
-            raise NotImplementedError
-        self.transport: DatagramTransport = transport
+def _signal_handler(sig: signal.Signals, shutdown_event: asyncio.Event) -> None:
+    logger.info(f"Received exit signal {sig.name}...")
+    shutdown_event.set()
 
-    def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
-        logger.info(f"datagram_received {data!r}")
-        self.transport.sendto(data, addr)
+
+def make_signal_handler(sig: signal.Signals, shutdown_event: asyncio.Event) -> Callable[[], None]:
+    return partial(_signal_handler, sig, shutdown_event)
+
+
+def setup_signal_handlers(shutdown_event: asyncio.Event) -> None:
+    """Attach SIGINT and SIGTERM handlers"""
+    loop = asyncio.get_running_loop()
+    if sys.platform == "win32":  # pragma: no cover
+        for sig in (signal.SIGINT, signal.SIGTERM):  # noqa: WPS426
+            signal.signal(sig, lambda *_: shutdown_event.set())
+    else:
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, make_signal_handler(sig, shutdown_event))
 
 
 async def main() -> None:
-    logger.debug("Starting DNS server...")
-    loop = get_running_loop()
-
+    shutdown_event = asyncio.Event()
+    setup_signal_handlers(shutdown_event)
+    loop = asyncio.get_running_loop()
     transport, _ = await loop.create_datagram_endpoint(
         DNSServerProtocol, local_addr=(HOST, DEFAULT_PORT)
     )
     try:  # noqa: WPS501
-        await sleep(float("inf"))
+        await shutdown_event.wait()
     finally:
         transport.close()
 
 
 if __name__ == "__main__":
-    with Runner() as runner:
+    with asyncio.Runner() as runner:
         runner.run(main())
