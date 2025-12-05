@@ -1,8 +1,9 @@
+import argparse
 import asyncio
 import signal
 import sys
 from functools import partial
-from typing import Callable
+from typing import Callable, Optional
 
 from app.const import DEFAULT_PORT, HOST
 from app.dns_server import DNSServerProtocol
@@ -34,12 +35,25 @@ def setup_signal_handlers(shutdown_event: asyncio.Event) -> None:
             loop.add_signal_handler(sig, make_signal_handler(sig, shutdown_event))
 
 
+def parse_args() -> Optional[tuple[str, int]]:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--resolver", type=str, help="Replica config")
+    args = parser.parse_args()
+    resolver = args.resolver
+    if resolver is None:
+        return None
+    ip, port = resolver.split(":")
+    return ip, int(port)
+
+
 async def main() -> None:
+    resolver = parse_args()
+    logger.info(f"resolver = {resolver}")
     shutdown_event = asyncio.Event()
     setup_signal_handlers(shutdown_event)
     loop = asyncio.get_running_loop()
     transport, _ = await loop.create_datagram_endpoint(
-        DNSServerProtocol, local_addr=(HOST, DEFAULT_PORT)
+        lambda: DNSServerProtocol(resolver), local_addr=(HOST, DEFAULT_PORT)
     )
     try:  # noqa: WPS501
         await shutdown_event.wait()

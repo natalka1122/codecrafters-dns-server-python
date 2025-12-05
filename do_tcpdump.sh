@@ -1,17 +1,18 @@
 #!/usr/bin/env sh
 set -e
 
-sudo rm -rf loopback.pcap || true
-echo "Starting tcpdump with 1-hour timeout..."
-sudo tcpdump -i lo -U -w loopback.pcap
-# sudo tcpdump -i eth0 -U -w loopback.pcap
+INTERFACE="${1:-loopback}"
 
-printf "Do you want to delete loopback.pcap? (y/N): "
+sudo rm -rf $INTERFACE.pcap || true
+echo "Starting tcpdump on $INTERFACE"
+sudo tcpdump -i $INTERFACE -U -w $INTERFACE.pcap
+
+printf "Do you want to delete $INTERFACE.pcap? (y/N): "
 read -r answer
 case "$answer" in
     [Yy]|[Yy][Ee][Ss])
-        echo "Deleting existing loopback.pcap..."
-        sudo rm -f loopback.pcap
+        echo "Deleting existing $INTERFACE.pcap..."
+        sudo rm -f $INTERFACE.pcap
         ;;
     *)
         echo "Keeping existing file. Exiting..."

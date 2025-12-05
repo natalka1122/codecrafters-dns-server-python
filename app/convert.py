@@ -60,11 +60,15 @@ def read_next_domainname(data: bytes, orig_data: bytes, _depth: int = 0) -> tupl
     return data[1:], b".".join(result)
 
 
-def ip_to_bytes(ip: str) -> bytes:
-    result = b""
-    for num in ip.split("."):  # noqa: WPS519
-        result += int_to_bytes(int(num), 1)
+def ip_to_bytes(ip: bytes) -> bytes:
+    result = int_to_bytes(len(ip), 2)
+    result += ip
     return result
+
+
+def read_next_ip(data: bytes) -> tuple[bytes, bytes]:
+    data, length = read_next_int(data, 2)
+    return data[length:], data[:length]
 
 
 def read_next_int(data: bytes, size: int) -> tuple[bytes, int]:
@@ -72,6 +76,12 @@ def read_next_int(data: bytes, size: int) -> tuple[bytes, int]:
         raise NotImplementedError
     result = bytes_to_int(data[:size])
     return data[size:], result
+
+
+def skip_next_bytes(data: bytes, size: int) -> bytes:
+    if len(data) < size:
+        raise NotImplementedError
+    return data[size:]
 
 
 def read_next_list_int(  # noqa: WPS210
